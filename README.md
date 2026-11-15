@@ -8,9 +8,9 @@ The point of the app: put a translucent line drawing over the sheet of paper in
 front of you — through the phone camera, or on the drawn desk fallback — then
 trace it with a real pencil, or with your finger using the built-in brushes.
 
-> **Live app:** _filled in after the first publish — see the repo's Pages link._
-> The camera only works on an `https://` page, so use the Pages URL, not a local
-> file.
+> **Live app: <https://irishfan3124.github.io/ar-drawing-web/>**
+> Open it on the phone, not on this PC. The camera only works on an `https://`
+> page, so use the Pages URL rather than a local file.
 
 | Home | Library | Tracing |
 | --- | --- | --- |
