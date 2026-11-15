@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#fd4f77">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>AR Drawing</title>
+<style>
+  html, body {
+    margin: 0; padding: 0; height: 100%; width: 100%;
+    overflow: hidden; background: #8a6242;
+    -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: none;
+  }
+  #desk {
+    position: fixed; inset: 0; z-index: 0;
+    background:
+      repeating-linear-gradient(92deg, rgba(90,60,35,.10) 0 2px, rgba(255,226,190,.06) 2px 5px, rgba(0,0,0,0) 5px 26px),
+      linear-gradient(158deg, #cba87e 0%, #a57e56 55%, #7d5738 100%);
+  }
+  #desk::after {
+    content: ""; position: absolute; left: 5vw; right: 5vw; top: 7vh; bottom: 7vh;
+    background: #faf8f2; border-radius: 6px;
+    box-shadow: 0 16px 38px rgba(30,18,8,.38), 0 2px 0 rgba(255,255,255,.4) inset;
+  }
+  #cam {
+    position: fixed; inset: 0; z-index: 1;
+    width: 100%; height: 100%; object-fit: cover;
+    display: none; background: #000;
+  }
+  body.live #cam { display: block; }
+  body.live #desk::after { display: none; }
+  #glcanvas {
+    position: fixed; inset: 0; z-index: 2;
+    width: 100%; height: 100%; display: block;
+    touch-action: none; outline: none;
+  }
+  #camtip {
+    position: fixed; z-index: 4; left: 50%; top: 6px; transform: translateX(-50%);
+    font: 600 11px/1 -apple-system, "Segoe UI", system-ui, sans-serif;
+    color: #fff; background: rgba(24,16,30,.72);
+    padding: 7px 12px; border-radius: 99px; border: 0;
+    display: none; opacity: .95; transition: opacity .6s;
+  }
+  body.nocam #camtip { display: block; }
+  #err {
+    position: fixed; z-index: 9; inset: 0; display: none;
+    align-items: center; justify-content: center; text-align: center;
+    background: #17141a; color: #fff; padding: 24px;
+    font: 500 14px/1.5 -apple-system, "Segoe UI", system-ui, sans-serif;
+  }
+</style>
+</head>
+<body>
+<div id="desk"></div>
+<video id="cam" autoplay playsinline muted></video>
+<canvas id="glcanvas" tabindex="1"></canvas>
+<button id="camtip">Tap to allow the camera</button>
+<div id="err">The drawing app could not start in this browser.<br>Try Chrome or Safari over https.</div>
+
+<script src="mq_js_bundle.js"></script>
+
+<script>
+(function () {
+  "use strict";
+  var B64 = "";
+  var cam = document.getElementById("cam");
+  var tip = document.getElementById("camtip");
+
+  function showDesk() { document.body.classList.remove("live"); document.body.classList.add("nocam"); }
+
+  function startCamera() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { showDesk(); return; }
+    navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 1280 } }
+    }).then(function (stream) {
+      cam.srcObject = stream;
+      var p = cam.play();
+      if (p && p.catch) p.catch(function () {});
+      document.body.classList.add("live");
+      document.body.classList.remove("nocam");
+      setTimeout(function () { tip.style.display = "none"; }, 400);
+    }).catch(function () { showDesk(); });
+  }
+
+  tip.addEventListener("click", function () { startCamera(); });
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    startCamera();
+  } else {
+    showDesk();
+  }
+
+  // stop iOS pinch-zoom of the page itself
+  document.addEventListener("gesturestart", function (e) { e.preventDefault(); });
+
+  function wasmBytes() {
+    if (B64 && B64.length > 8) {
+      var bin = atob(B64);
+      var out = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+      return Promise.resolve(out);
+    }
+    return fetch("ar_drawing.wasm").then(function (r) {
+      if (!r.ok) throw new Error("wasm fetch " + r.status);
+      return r.arrayBuffer();
+    }).then(function (b) { return new Uint8Array(b); });
+  }
+
+  function boot() {
+    wasmBytes().then(function (bytes) {
+      register_plugins(plugins);
+      var mod = new WebAssembly.Module(bytes);
+      add_missing_functions_stabs(mod);
+      return WebAssembly.instantiate(mod, importObject);
+    }).then(function (inst) {
+      wasm_memory = inst.exports.memory;
+      wasm_exports = inst.exports;
+      init_plugins(plugins);
+      inst.exports.main();
+      // The canvas is measured before the browser has settled its layout on a
+      // phone (address bar, safe areas), so measure again once it has.
+      var fit = function () {
+        var c = document.getElementById("glcanvas");
+        if (!c || !wasm_exports || !wasm_exports.resize) return;
+        resize(c, wasm_exports.resize);
+      };
+      setTimeout(fit, 100);
+      setTimeout(fit, 600);
+      window.addEventListener("resize", fit);
+      window.addEventListener("orientationchange", function () { setTimeout(fit, 350); });
+      window.addEventListener("load", fit);
+    }).catch(function (e) {
+      console.error(e);
+      document.getElementById("err").style.display = "flex";
+    });
+  }
+
+  if (document.readyState === "complete" || document.readyState === "interactive") boot();
+  else window.addEventListener("DOMContentLoaded", boot);
+})();
+</script>
+</body>
+</html>
