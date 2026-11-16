@@ -103,7 +103,9 @@
       for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
       return Promise.resolve(out);
     }
-    return fetch("ar_drawing.wasm").then(function (r) {
+    // Bump ?v= whenever the wasm changes: GitHub Pages caches assets for ten
+    // minutes, and a phone will happily keep the stale build in its own cache.
+    return fetch("ar_drawing.wasm?v=2").then(function (r) {
       if (!r.ok) throw new Error("wasm fetch " + r.status);
       return r.arrayBuffer();
     }).then(function (b) { return new Uint8Array(b); });

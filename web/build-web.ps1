@@ -8,8 +8,13 @@ $root = Split-Path -Parent $here
 
 Push-Location $root
 try {
-    cargo build --release --target wasm32-unknown-unknown
-    if ($LASTEXITCODE -ne 0) { throw "wasm build failed" }
+    # Cargo prints warnings on stderr; with $ErrorActionPreference = "Stop" that
+    # would abort the script mid-build, so judge success by the exit code only.
+    $log = & {
+        $ErrorActionPreference = 'Continue'
+        cargo build --release --target wasm32-unknown-unknown 2>&1
+    }
+    if ($LASTEXITCODE -ne 0) { $log | Write-Output; throw "wasm build failed" }
 
     $wasmSrc = Join-Path $root "target\wasm32-unknown-unknown\release\ar_drawing.wasm"
     $bundleSrc = Join-Path $env:USERPROFILE ".cargo\registry\src\index.crates.io-1949cf8c6b5b557f\macroquad-0.4.16\js\mq_js_bundle.js"

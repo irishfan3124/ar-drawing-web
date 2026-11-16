@@ -189,6 +189,9 @@ struct Input {
     released: bool,
     wheel: f32,
     second: Option<Vec2>,
+    /// Set once the platform has delivered a real touch. Phones never move the
+    /// mouse, so from then on the touch is the only trustworthy pointer.
+    touch: bool,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -548,9 +551,17 @@ impl App {
             let map = |p: Vec2| vec2(view.x + p.x * scale, view.y + p.y * scale);
             pos = map(ts[0].position);
             down = true;
+            self.input.touch = true;
             if ts.len() > 1 {
                 second = Some(map(ts[1].position));
             }
+        } else if self.input.touch {
+            // The frame a finger lifts, `touches()` is already empty and the mouse
+            // fallback is worthless on a phone: no mouse event ever moved it, so
+            // the release point would snap to the top-left corner and no button
+            // would match its rectangle. Hold the last real touch point instead.
+            pos = self.input.pos;
+            down = false;
         }
         let pressed = down && !self.input.down;
         let released = !down && self.input.down;
